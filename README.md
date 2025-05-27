@@ -1,87 +1,80 @@
-# Calculator Microservice (Enhanced Error Handling)
+# Task 5.2D: Microservice Dockerization & Cloud Publishing
 
 ## Overview
-This microservice extends the functionality of the simple calculator from Task 4.1P by implementing enhanced error handling. It provides clear and standardized error responses for invalid inputs, missing parameters, and edge cases like division by zero.
+This project dockerizes the enhanced calculator microservice from Task 5.1P and publishes it to a private Google Cloud container registry. The solution includes production-ready containerization with validation steps.
 
 ---
 
 ## Environment Setup
-1. **Install Node.js**  
-   Download and install the LTS version from [Node.js Official Website](https://nodejs.org/en/download/).  
-   Verify installation:
-   node -v
-   npm -v
-2.**Clone the Repository**
-git clone https://github.com/Lillian-ran/sit323-2025-prac4c.git
-cd sit323-2025-prac4c
-3.**Install Dependencies**
-npm install
+### Prerequisites
+1. **Tools**:
+   - [Git](https://git-scm.com/)
+   - [Node.js](v18+) ([Download](https://nodejs.org/en/download/))
+   - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+   - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
 
-Running the Service
-Start the microservice:
-node app.js
-The service will run at http://localhost:3000.
-
-## API Endpoints
-### Basic Arithmetic Operations
-| Endpoint      | Parameters          | Example Request                     | Example Response           |
-|---------------|---------------------|-------------------------------------|----------------------------|
-| **GET /add**  | `num1`, `num2`      | `/add?num1=5&num2=3`               | `{ "result": 8 }`          |
-| **GET /subtract** | `num1`, `num2`  | `/subtract?num1=10&num2=4`         | `{ "result": 6 }`          |
-| **GET /multiply** | `num1`, `num2`  | `/multiply?num1=5&num2=3`          | `{ "result": 15 }`         |
-| **GET /divide**   | `num1`, `num2`  | `/divide?num1=10&num2=2`           | `{ "result": 5 }`          |
+2. **GCP Account**:  
+   School-provided Google Cloud account with permissions to:
+   - Create Artifact Registry repositories
+   - Push Docker images
 
 ---
 
-## Enhanced Error Handling
-### Error Response Format
-All errors return a standardized JSON response:
-{
-  "status": 400,
-  "message": "Error description"
-}
+## Containerization Workflow
+### Step 1: Create Private Container Registry
+```bash
+gcloud artifacts repositories create sit323-2025-prac5d \
+  --repository-format=docker \
+  --location=australia-southeast2 \
+  --description="Production registry for calculator microservice"
+```
 
-### Error Scenarios
-| Error Type               | Example Request                 | Status Code | Response Message                                                                 |
-|--------------------------|----------------------------------|-------------|----------------------------------------------------------------------------------|
-| **Missing Parameters**   | `/add?num1=5`                   | 400         | `Missing required parameters: 'num1' and 'num2'`                                |
-| **Invalid Numbers**      | `/add?num1=5&num2=abc`          | 400         | `Invalid input: 'num2' is not a valid number (received 'abc')`                  |
-| **Division by Zero**     | `/divide?num1=10&num2=0`        | 422         | `Division by zero is not allowed`                                               |
-| **Invalid Endpoint**     | `/invalid`                      | 404         | `Endpoint not found. Valid endpoints: /add, /subtract, /multiply, /divide`      |
+### Step 2: Docker Build & Tagging
+```bash
+# Build image with GCP-compliant naming
+docker build -t australia-southeast2-docker.pkg.dev/sit323-25t1-yanran-li-8cae0a7/sit323-2025-prac5d/sit323-2025-prac5d:latest
 
+# Optional: Add secondary tag
+docker tag australia-southeast2-docker.pkg.dev/.../calculator-service:1.0.0 calculator:latest
+```
 
-## Testing Examples
-### Valid Request
-curl "http://localhost:3000/add?num1=10&num2=5"
-# Response: { "result": 15 }
+### Step 3: Registry Authentication
+```bash
+gcloud auth configure-docker australia-southeast2-docker.pkg.dev
+```
 
+### Step 4: Push to GCP Registry
+```bash
+docker push australia-southeast2-docker.pkg.dev/sit323-25t1-yanran-li-8cae0a7/sit323-2025-prac5d/sit323-2025-prac5d:latest
+```
 
-### Error Cases
-1. **Missing Parameter**  
+### Step 5: Validate Deployment
+```bash
+# Pull and run from registry
+docker run -dp 3000:3000 \
+  australia-southeast2-docker.pkg.dev/sit323-25t1-yanran-li-8cae0a7/sit323-2025-prac5d/sit323-2025-prac5d:latest
 
-   curl "http://localhost:3000/add?num1=5"
-   # Response: { "status": 400, "message": "Missing required parameters: 'num1' and 'num2'" }
+# Verify service
+curl http://localhost:3000/add?num1=15&num2=23
+```
 
+---
 
-2. **Invalid Number**  
+## Key Components
+### Dockerfile
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3000
+CMD ["node", "app.js"]
+```
 
-   curl "http://localhost:3000/multiply?num1=5&num2=abc"
-   # Response: { "status": 400, "message": "Invalid input: 'num2' is not a valid number (received 'abc')" }
-
-
-3. **Division by Zero**  
-
-   curl "http://localhost:3000/divide?num1=10&num2=0"
-   # Response: { "status": 422, "message": "Division by zero is not allowed" }
-
-
-4. **Invalid Endpoint**  
-
-   curl "http://localhost:3000/invalid"
-   # Response: { "status": 404, "message": "Endpoint not found. Valid endpoints: /add, /subtract, /multiply, /divide" }
-
-
-### **Key Updates**
-1. Standardized error responses with `status` and `message` fields.
-2. Clear documentation for error scenarios and testing examples.
-3. Simplified setup and usage instructions in English.
+### Cloud Configuration
+| Parameter               | Value                                  |
+|-------------------------|----------------------------------------|
+| **Project ID**          | `sit323-25t1-yanran-li-8cae0a7`        |
+| **Registry Region**     | `australia-southeast2`                 |
+| **Image URI**           | `australia-southeast2-docker.pkg.dev/.../sit323-2025-prac5d:latest` |
